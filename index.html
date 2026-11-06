@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TuitionMate</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6fc;color:#17233b}
+header{background:#1746a2;color:white;padding:22px 17px}
+header h2{margin:0}
+header p{margin:6px 0 0;color:#dce7ff}
+nav{display:flex;gap:8px;padding:12px;overflow:auto;background:white}
+nav button{border:0;padding:11px 15px;border-radius:9px;background:#eaf0fc;color:#1746a2;font-weight:bold;white-space:nowrap}
+nav button.active{background:#1746a2;color:white}
+main{padding:15px;max-width:750px;margin:auto}
+.page{display:none}
+.page.active{display:block}
+h3{margin-top:10px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:white;padding:17px;border-radius:13px;box-shadow:0 2px 8px #0000000a}
+.card small{color:#64748b}
+.card h2{margin:9px 0 0;color:#1746a2}
+input,select{width:100%;padding:13px;margin:7px 0;border:1px solid #d5dce9;border-radius:8px;font-size:15px;background:white}
+button{cursor:pointer}
+.primary{background:#1746a2;color:white;border:0;border-radius:8px;padding:13px;width:100%;font-weight:bold;margin-top:8px}
+.student{background:white;padding:14px;border-radius:11px;margin:10px 0}
+.student b{font-size:16px}
+.student p{color:#64748b;margin:6px 0}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.actions button{padding:9px;border:0;border-radius:7px;background:#eaf0fc;color:#1746a2}
+.green{color:#16834b}
+.red{color:#d32f2f}
+hr{border:0;border-top:1px solid #eee;margin:12px 0}
+</style>
+</head>
+<body>
+
+<header>
+<h2 id="brand">TuitionMate</h2>
+<p>Smart Coaching Management</p>
+</header>
+
+<nav>
+<button class="active" onclick="show('home',this)">Dashboard</button>
+<button onclick="show('students',this)">Students</button>
+<button onclick="show('attendance',this)">Attendance</button>
+<button onclick="show('fees',this)">Fees</button>
+<button onclick="show('settings',this)">Settings</button>
+</nav>
+
+<main>
+
+<section id="home" class="page active">
+<h3>Dashboard</h3>
+<div class="cards">
+<div class="card"><small>Total Students</small><h2 id="total">0</h2></div>
+<div class="card"><small>Present Today</small><h2 id="present">0</h2></div>
+<div class="card"><small>Absent Today</small><h2 id="absent">0</h2></div>
+<div class="card"><small>Fees Pending</small><h2 id="pending">₹0</h2></div>
+</div>
+</section>
+
+<section id="students" class="page">
+<h3>Add New Student</h3>
+<input id="name" placeholder="Student Name">
+<input id="className" placeholder="Class / Standard">
+<input id="parent" placeholder="Parent Mobile Number" type="tel">
+<input id="fee" placeholder="Total Course Fees (₹)" type="number">
+<select id="plan">
+<option>Monthly</option>
+<option>Quarterly</option>
+<option>Half-yearly</option>
+<option>One-time</option>
+</select>
+<button class="primary" onclick="addStudent()">+ Add Student</button>
+<h3>Student List</h3>
+<input id="search" placeholder="Search student..." oninput="render()">
+<div id="studentList"></div>
+</section>
+
+<section id="attendance" class="page">
+<h3>Today's Attendance</h3>
+<div id="attendanceList"></div>
+<h3>Attendance Summary</h3>
+<div id="history"></div>
+</section>
+
+<section id="fees" class="page">
+<h3>Fee Management</h3>
+<div id="feeList"></div>
+</section>
+
+<section id="settings" class="page">
+<h3>Coaching Profile</h3>
+<input id="coaching" placeholder="Coaching Class Name">
+<input id="teacher" placeholder="Teacher Name">
+<button class="primary" onclick="saveSettings()">Save Coaching Profile</button>
+</section>
+
+</main>
+
+<script>
+let students=JSON.parse(localStorage.getItem('tm_students')||'[]');
+let attendance=JSON.parse(localStorage.getItem('tm_attendance')||'{}');
+let payments=JSON.parse(localStorage.getItem('tm_payments')||'{}');
+
+function save(){
+localStorage.setItem('tm_students',JSON.stringify(students));
+localStorage.setItem('tm_attendance',JSON.stringify(attendance));
+localStorage.setItem('tm_payments',JSON.stringify(payments));
+}
+
+function today(){
+return new Date().toLocaleDateString('en-CA');
+}
+
+function show(id,btn){
+document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+btn.classList.add('active');
+render();
+}
+
+function addStudent(){
+let n=document.getElementById('name').value.trim();
+let c=document.getElementById('className').value.trim();
+let p=document.getElementById('parent').value.trim();
+let f=Number(document.getElementById('fee').value);
+if(!n||!c||!p||!f){alert('Please fill all details');return}
+if(!/^[0-9]{10}$/.test(p)){alert('Enter a valid 10-digit mobile number');return}
+students.push({id:Date.now(),name:n,cls:c,parent:p,fee:f,plan:document.getElementById('plan').value});
+save();
+['name','className','parent','fee'].forEach(id=>document.getElementById(id).value='');
+render();
+alert('Student added!');
+}
+
+function paid(s){
+return (payments[s.id]||[]).reduce((a,b)=>a+b.amount,0);
+}
+
+function addPayment(id){
+let s=students.find(x=>x.id===id);
+let amount=Number(prompt('Enter amount received (₹):'));
+if(!amount||amount<=0){return}
+if(amount>s.fee-paid(s)){alert('Amount is greater than remaining fee');return}
+payments[id]=payments[id]||[];
+payments[id].push({amount,date:today()});
+save();render();
+}
+
+function mark(id,status){
+attendance[today()]=attendance[today()]||{};
+attendance[today()][id]=status;
+save();render();
+}
+
+function notify(s,type){
+let msg=type==='absent'
+`Dear Parent, ${s.name} was absent from today's tuition class. - ${document.getElementById('brand').textContent}`
+:`Dear Parent, Fee pending for ${s.name}: ₹${s.fee-paid(s)}. Kindly pay at your convenience.`;
+let url='https://wa.me/91'+s.parent+'?text='+encodeURIComponent(msg);
+window.open(url,'_blank');
+}
+
+function render(){
+let t=students.length;
+let day=attendance[today()]||{};
+let pr=students.filter(s=>day[s.id]==='Present').length;
+let ab=students.filter(s=>day[s.id]==='Absent').length;
+let due=students.reduce((a,s)=>a+s.fee-paid(s),0);
+document.getElementById('total').textContent=t;
+document.getElementById('present').textContent=pr;
+document.getElementById('absent').textContent=ab;
+document.getElementById('pending').textContent='₹'+due;
+
+let q=(document.getElementById('search')?.value||'').toLowerCase();
+document.getElementById('studentList').innerHTML=students.filter(s=>s.name.toLowerCase().includes(q)).map(s=>`
+<div class="student">
+<b>${s.name}</b><p>${s.cls} · ${s.parent}</p>
+<p>Total fee: ₹${s.fee} · ${s.plan}</p>
+<p>Paid: ₹${paid(s)} · <span class="red">Due: ₹${s.fee-paid(s)}</span></p>
+<div class="actions"><button onclick="addPayment(${s.id})">+ Payment</button>
+<button onclick="notify(students.find(x=>x.id===${s.id}),'fee')">Fee Reminder</button>
+<button onclick="removeStudent(${s.id})">Delete</button></div></div>`).join('');
+
+document.getElementById('attendanceList').innerHTML=students.map(s=>`
+<div class="student"><b>${s.name}</b>
+<div class="actions">
+<button onclick="mark(${s.id},'Present')">Present</button>
+<button onclick="mark(${s.id},'Absent')">Absent</button>
+<span>${day[s.id]||'Not marked'}</span>
+${day[s.id]==='Absent'?`<button onclick="notify(students.find(x=>x.id===${s.id}),'absent')">Notify Parent</button>`:''}
+</div></div>`).join('');
+
+document.getElementById('feeList').innerHTML=students.map(s=>`
+<div class="student"><b>${s.name}</b>
+<p>Total: ₹${s.fee} | Paid: ₹${paid(s)} | Due: ₹${s.fee-paid(s)}</p>
+<button class="primary" onclick="addPayment(${s.id})">Record Payment</button>
+</div>`).join('');
+
+let dates=Object.keys(attendance).sort().reverse();
+document.getElementById('history').innerHTML=students.map(s=>{
+let days=dates.filter(d=>attendance[d][s.id]);
+let present=days.filter(d=>attendance[d][s.id]==='Present').length;
+let absent=days.filter(d=>attendance[d][s.id]==='Absent').length;
+let total=days.length;
+return `<div class="student"><b>${s.name}</b><p>Present: ${present} | Absent: ${absent} | Total: ${total} | Attendance: ${total?Math.round(present/total*100):0}%</p></div>`;
+}).join('');
+}
+
+function removeStudent(id){
+if(confirm('Delete this student?')){
+students=students.filter(s=>s.id!==id);
+delete payments[id];
+Object.values(attendance).forEach(d=>delete d[id]);
+save();render();
+}
+}
+
+function saveSettings(){
+let n=document.getElementById('coaching').value.trim();
+if(!n){alert('Enter coaching name');return}
+localStorage.setItem('tm_brand',n);
+localStorage.setItem('tm_teacher',document.getElementById('teacher').value);
+document.getElementById('brand').textContent=n;
+alert('Coaching profile saved!');
+}
+
+document.getElementById('coaching').value=localStorage.getItem('tm_brand')||'';
+document.getElementById('teacher').value=localStorage.getItem('tm_teacher')||'';
+document.getElementById('brand').textContent=localStorage.getItem('tm_brand')||'TuitionMate';
+render();
+</script>
+</body>
+  </html>
